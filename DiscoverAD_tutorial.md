@@ -505,6 +505,8 @@ Atypical_pam_results <- dat_cluster %>%
 
 print(Atypical_pam_results$the_summary)
 ```
+
+```
 [[1]]
     insulin      GAD65Ab.index         WAIST            HIP              BMI1            MFBG          HOMA_IR        HOMA_beta       AGE_AT_VISIT     KETOACID  
  Min.   : 6.80   Min.   :0.02966   Min.   : 82.3   Min.   : 90.70   Min.   :22.10   Min.   : 95.0   Min.   :2.277   Min.   : 17.95   Min.   :21.0   Min.   :0.0  
@@ -573,7 +575,9 @@ print(Atypical_pam_results$the_summary)
  Mean   :2.933   Mean   :44.25   Mean   :0.5   Mean   :1.5   Mean   :4  
  3rd Qu.:3.220   3rd Qu.:47.75   3rd Qu.:1.0   3rd Qu.:1.5   3rd Qu.:4  
  Max.   :3.760   Max.   :56.00   Max.   :1.0   Max.   :3.0   Max.   :4  
- ```
+ NA's   :1                                                              
+
+```
  
 ## References
 Balasubramanyam A, Garza G, Rodriguez L, Hampe CS, Gaur L, Lernmark A,
