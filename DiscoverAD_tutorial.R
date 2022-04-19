@@ -5,6 +5,9 @@ library(Amelia)
 library(cluster)
 library(Rtsne)
 library(ggrepel)
+library(factoextra)
+library(reshape2)
+library(gridExtra)
 
 
 #Read in input file
@@ -114,13 +117,19 @@ dat$type[dat$type==0]<-3
 dat$exclusion<-ifelse(dat$type==3, 1, 0)
 
 
-#Include A-/B+ and A-/B- KPD participants
-dat$type[dat$Ab_pos==0 & dat$KETOACID==1]<-3
-dat$inclusion<-ifelse(dat$Ab_pos==0 & dat$KETOACID==1, 1, 0)
+dat$inclusion <- 0
 
 #Include A+/B+ KPD participants
-dat$type[dat$Ab_pos==1 & dat$HOMA_beta>50 & dat$KETOACID==1]<-3
-dat$inclusion<-ifelse(dat$Ab_pos==1 & dat$HOMA_beta>50 & dat$KETOACID==1, 1, dat$inclusion)
+dat$type[dat$Ab_pos==1 & dat$HOMA_beta>=50 & dat$KETOACID==1]<-3
+dat$inclusion<-ifelse(dat$Ab_pos==1 & dat$HOMA_beta>=50 & dat$KETOACID==1, 1, dat$inclusion)
+
+#Include A-/B+ KPD participants
+dat$type[dat$Ab_pos==0 & dat$HOMA_beta>=50 & dat$KETOACID==1]<-3
+dat$inclusion<-ifelse(dat$Ab_pos==0 & dat$HOMA_beta>=50 & dat$KETOACID==1, 1, dat$inclusion)
+
+#Include A-/B- KPD participants
+dat$type[dat$Ab_pos==0 & dat$HOMA_beta<50 & dat$KETOACID==1]<-3
+dat$inclusion<-ifelse(dat$Ab_pos==0 & dat$HOMA_beta<50 & dat$KETOACID==1, 1, dat$inclusion)
 
 
 #Create a binary atypical identification flag
@@ -146,13 +155,16 @@ boruta_selection<- Boruta(atypical~., data = dat_fs_imputed$imputations[[1]], do
 
 
 #Plot boruta selection
-plot(boruta_selection, xlab = "", xaxt = "n")
+gscale<-c("#4D4D4D", "#4D4D4D","#CCCCCC")
+plot(boruta_selection, xlab = "", xaxt = "n", col=gscale[as.numeric(boruta_selection$finalDecision)], family="G")
 lz<-lapply(1:ncol(boruta_selection$ImpHistory),function(i)
   boruta_selection$ImpHistory[is.finite(boruta_selection$ImpHistory[,i]),i])
 names(lz) <- unlist(lapply(colnames(boruta_selection$ImpHistory), str_remove_all, "`"))
 Labels <- sort(sapply(lz,median))
 axis(side = 1,las=2,labels = names(Labels),
      at = 1:ncol(boruta_selection$ImpHistory), cex.axis = 0.7)
+legend("topleft", inset=0.02, legend=c("Confirmed predictor", "Rejected predictor"), fill=gscale[2:3], cex=0.8)
+title("Boruta Feature Selection")
 
 
 #Decide on tentative variables
@@ -232,8 +244,16 @@ print(paste0("Silhouette Width: ", best_k, " clusters"))
 Atypical_pam_fit <- pam(gower.daisy.mat, diss = TRUE, k = best_k)
 
 #Plot silhouette widths
-plot(Atypical_pam_fit, main=NULL)
+s<-fviz_silhouette(Atypical_pam_fit, label=TRUE) + 
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_fill_grey() +
+  scale_color_grey() +
+  xlab("Patient #") +
+  geom_hline(yintercept=Atypical_pam_fit$silinfo["avg.width"]$avg.width, linetype="dashed") +
+  theme(title = element_text(family = 'Arial'))
 
+plot(s)
+```
 
 #Generate visual representation of cluster for Atypical
 tsne_obj <- Rtsne(gower.daisy.mat, is_distance = TRUE, perplexity=6)
@@ -245,10 +265,17 @@ tsne_data <- tsne_obj$Y %>%
          name = dat_cluster$BDVISIT,
          pid = names(Atypical_pam_fit$clustering))
 
-print(ggplot(aes(x = X, y = Y), data = tsne_data) +
-        geom_point(aes(color=cluster), size=2) +
-        theme(text = element_text(size=18)) +
-        labs(color="Cluster"))
+tsne<-ggplot(aes(x = X, y = Y), data = tsne_data) + 
+  geom_point(aes(shape=cluster), size=4) +
+  scale_shape_manual(values=c(15,2,19,5)) +
+  labs(fill="Cluster") +
+  xlab("Tsne Dimension 1") +
+  ylab("Tsne Dimension 2") +
+  ggtitle("AD PAM Clusters") +
+  theme(plot.title = element_text(hjust = 0.6)) + 
+  theme(title = element_text(family = 'Arial')) +
+  geom_text_repel(aes(label=pid), point.padding = .25)
+plot(tsne)
 
 
 Atypical_pam_results <- dat_cluster %>%
@@ -258,3 +285,125 @@ Atypical_pam_results <- dat_cluster %>%
 
 print(Atypical_pam_results$the_summary)
 
+#Visualize clusters with radar plots
+           
+theme(plot.title = element_text(hjust = 0.5))
+
+## Data prep
+
+#Filter to only cluster variables and gender
+dat_cluster_radar <- dat_cluster
+
+dat_cluster_radar <- merge(dat_cluster_radar, dat[,c("Mask", "consensus_gender")], by.x="row.names", by.y="Mask")
+rownames(dat_cluster_radar) <- dat_cluster_radar$Row.names
+
+#Convert consensus_gender to Gender (Male)
+dat_cluster_radar$Gender <- ifelse(dat_cluster_radar$consensus_gender==1,1,0)
+
+#Drop unnecessary variables
+dat_cluster_radar <- dplyr::select(dat_cluster_radar, -c("Row.names","consensus_gender"))
+
+#Get variable types
+var_types <- tbl_summary(dplyr::select(dat_cluster_radar,-"Cluster"))
+var_types <- var_types$table_body
+var_types <- data.frame(distinct(var_types[, c("variable", "var_type")]))
+
+#Output table
+radar_df <- as.data.frame(matrix(nrow=length(unique(dat_cluster_radar$Cluster)), ncol=nrow(var_types)))
+colnames(radar_df) <- var_types$variable
+
+#Get stats for dichotomous variables
+for (var_name in var_types[which(var_types$var_type=="dichotomous"),"variable"]) {
+  for (cluster_id in unique(dat_cluster_radar$Cluster)){
+    dat_cluster_radar_var <- as.data.frame(dat_cluster_radar[which(dat_cluster_radar$Cluster==cluster_id), var_name])
+    mean_avg <- mean(dat_cluster_radar_var[,1], na.rm = T)
+    radar_df[cluster_id, var_name] <- mean_avg
+  }
+}
+
+#Get stats for continuous variables
+continuous_vars <- dplyr::select(dat_cluster_radar, c(var_types[which(var_types$var_type=="continuous"),"variable"], "Cluster"))
+
+continuous_vars_norm <- as.data.frame(matrix(nrow=nrow(continuous_vars), ncol=ncol(continuous_vars)))
+colnames(continuous_vars_norm) <- colnames(continuous_vars)
+continuous_vars_norm$Cluster <- continuous_vars$Cluster
+rownames(continuous_vars_norm) <- rownames(dat_cluster_radar)
+
+for (j in 1:(ncol(continuous_vars)-1)){
+  x <- continuous_vars[,j]
+  normalized <- (x-min(x, na.rm = T))/(max(x, na.rm = T)-min(x, na.rm = T))
+  continuous_vars_norm[,j] <- normalized
+}
+
+
+for (var_name in var_types[which(var_types$var_type=="continuous"),"variable"]) {
+  for (cluster_id in unique(dat_cluster_radar$Cluster)){
+    dat_cluster_radar_var <- as.data.frame(continuous_vars_norm[which(continuous_vars_norm$Cluster==cluster_id), var_name])
+    median_avg <- median(dat_cluster_radar_var[,1], na.rm = T)
+    sd <- sd(dat_cluster_radar_var[,1], na.rm = T)
+    radar_df[cluster_id, var_name] <- median_avg
+  }
+}
+
+radar_df_t <- as.data.frame(t(radar_df))
+colnames(radar_df_t)<-paste("Cluster", seq(1,4), sep="_")
+radar_df_t$variable <- rownames(radar_df_t)
+
+coord_radar <- function (theta = "x", start = 0, direction = 1) {
+  theta <- match.arg(theta, c("x", "y"))
+  r <- if (theta == "x") "y" else "x"
+  ggproto("CordRadar", CoordPolar, theta = theta, r = r, start = start, 
+          direction = sign(direction),
+          clip="off",
+          is_linear = function(coord) TRUE)
+}
+
+radar_long <- reshape2::melt(radar_df_t)
+colnames(radar_long) <- c("Variable", "Cluster", "Value")
+
+gg_color_hue <- function(n) {
+  hues = seq(15, 375, length = n + 1)
+  hcl(h = hues, l = 65, c = 100)[1:n]
+}
+
+rainbow4 <- gg_color_hue(4)
+ybreaks <- seq(0,1,.25)
+
+plot_list <- list()
+
+count<-1
+
+for (cluster_id in unique(radar_long$Cluster)){
+  radar_long_tmp <- radar_long[which(radar_long$Cluster==cluster_id),]
+  radar_long_tmp <- radar_long_tmp[order(radar_long_tmp$Variable),]
+  radar_long_tmp[nrow(radar_long_tmp)+1,] <- radar_long_tmp[1,]
+  
+  p <- ggplot(data=radar_long_tmp, aes(x=Variable, y=Value)) +
+    geom_polygon(aes(group=Cluster, color="Cluster"), color=rainbow4[count], fill = rainbow4[count], alpha=0.5, size = 1, show.legend = FALSE) +
+    geom_line(aes(group=Cluster), color=rainbow4[count], size=.75) +
+    ylim(-0.25, 1) +
+    geom_point(size=1.5, color=rainbow4[count]) +
+    coord_radar(start=0) +
+    theme_minimal() +
+    ylab("") +
+    xlab("") +
+    geom_text(data = data.frame(x = 0, y = ybreaks, label = ybreaks),
+              aes(x = x, y = y, label = label),
+              size =4) +
+    ggtitle(str_replace(cluster_id, "_"," ")) +
+    theme(legend.position = "none",
+          axis.ticks = element_blank(),
+          axis.text.y = element_blank(),
+          panel.grid.major.x = element_line(colour="white"),
+          plot.title = element_text(hjust = 0.5, face="bold", size=24),
+          axis.text.x = element_text(size=10)
+    )
+    
+  plot_list[[count]]<-p
+  
+  count <- count + 1
+}
+
+plot_list <- lapply(plot_list, ggplotGrob)
+x <- arrangeGrob(grobs=plot_list, nrow=2, ncol=2)
+grid.arrange(x)
