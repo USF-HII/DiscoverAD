@@ -322,14 +322,17 @@ dat_fs_imputed <- amelia(dat_fs, m=1, parallel = "multicore")
 boruta_selection<- Boruta(atypical~., data = dat_fs_imputed$imputations[[1]], doTrace = 2, maxRuns=500)
 
 
-#Plot boruta selection
-plot(boruta_selection, xlab = "", xaxt = "n")
+gscale<-c("#4D4D4D", "#4D4D4D","#CCCCCC")
+plot(boruta_selection, xlab = "", xaxt = "n", col=gscale[as.numeric(boruta_selection$finalDecision)], family="G")
 lz<-lapply(1:ncol(boruta_selection$ImpHistory),function(i)
   boruta_selection$ImpHistory[is.finite(boruta_selection$ImpHistory[,i]),i])
 names(lz) <- unlist(lapply(colnames(boruta_selection$ImpHistory), str_remove_all, "`"))
 Labels <- sort(sapply(lz,median))
 axis(side = 1,las=2,labels = names(Labels),
      at = 1:ncol(boruta_selection$ImpHistory), cex.axis = 0.7)
+legend("topleft", inset=0.02, legend=c("Confirmed predictor", "Rejected predictor"), fill=gscale[2:3], cex=0.8)
+title("Boruta Feature Selection")
+
 ```
 <p align="center">
 <img src="DiscoverAD_tutorial_files/figure-gfm/supplemental_figure_1A.jpg">
