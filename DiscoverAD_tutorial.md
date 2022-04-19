@@ -332,7 +332,7 @@ axis(side = 1,las=2,labels = names(Labels),
      at = 1:ncol(boruta_selection$ImpHistory), cex.axis = 0.7)
 ```
 <p align="center">
-<img src="DiscoverAD_tutorial_files/figure-gfm/supp_figure_1A.png">
+<img src="DiscoverAD_tutorial_files/figure-gfm/supp_figure_1A.jpg">
 </p>
 
 ``` r
