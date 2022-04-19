@@ -258,13 +258,20 @@ Ketosis-Prone Diabetes(KPD) previously defined by Balasubramanyam et.
 al. (2006).
 
 ``` r
-#Include A-/B+ and A-/B- KPD participants
-dat$type[dat$Ab_pos==0 & dat$KETOACID==1]<-3
-dat$inclusion<-ifelse(dat$Ab_pos==0 & dat$KETOACID==1, 1, 0)
+
+dat$inclusion <- 0
 
 #Include A+/B+ KPD participants
-dat$type[dat$Ab_pos==1 & dat$HOMA_beta>50 & dat$KETOACID==1]<-3
-dat$inclusion<-ifelse(dat$Ab_pos==1 & dat$HOMA_beta>50 & dat$KETOACID==1, 1, dat$inclusion)
+dat$type[dat$Ab_pos==1 & dat$HOMA_beta>=50 & dat$KETOACID==1]<-3
+dat$inclusion<-ifelse(dat$Ab_pos==1 & dat$HOMA_beta>=50 & dat$KETOACID==1, 1, dat$inclusion)
+
+#Include A-/B+ KPD participants
+dat$type[dat$Ab_pos==0 & dat$HOMA_beta>=50 & dat$KETOACID==1]<-3
+dat$inclusion<-ifelse(dat$Ab_pos==0 & dat$HOMA_beta>=50 & dat$KETOACID==1, 1, dat$inclusion)
+
+#Include A-/B- KPD participants
+dat$type[dat$Ab_pos==0 & dat$HOMA_beta<50 & dat$KETOACID==1]<-3
+dat$inclusion<-ifelse(dat$Ab_pos==0 & dat$HOMA_beta<50 & dat$KETOACID==1, 1, dat$inclusion)
 ```
 
 ## Cluster Analysis
