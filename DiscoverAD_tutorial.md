@@ -19,6 +19,7 @@ Cassandra Remedios
       - [Cluster Data Prep](#cluster-data-prep)
       - [Feature Selection](#feature-selection)
       - [Clustering](#clustering)
+      - [Visualization](#visualization)
   - [References](#references)
 
 ## Introduction
@@ -44,6 +45,7 @@ library(cluster)
 library(Rtsne)
 library(ggrepel)
 library(factoextra)
+library(reshape2)
 ```
 
 ## Input Data
@@ -578,7 +580,137 @@ print(Atypical_pam_results$the_summary)
  NA's   :1                                                              
 
 ```
- 
+### Visualization
+We can visualize the traits of each cluster using radar plots. Continuous variables are described as the min-max normalized median value of each cluster and dichotomous variables are described as the mean value of each cluster.
+
+``` r
+theme(plot.title = element_text(hjust = 0.5))
+
+## Data prep
+
+#Filter to only cluster variables and gender
+dat_cluster_radar <- dat_cluster
+
+dat_cluster_radar <- merge(dat_cluster_radar, dat[,c("Mask", "consensus_gender")], by.x="row.names", by.y="Mask")
+rownames(dat_cluster_radar) <- dat_cluster_radar$Row.names
+
+#Convert consensus_gender to Gender (Male)
+dat_cluster_radar$Gender <- ifelse(dat_cluster_radar$consensus_gender==1,1,0)
+
+#Drop unnecessary variables
+dat_cluster_radar <- dplyr::select(dat_cluster_radar, -c("Row.names","consensus_gender"))
+
+#Get variable types
+var_types <- tbl_summary(dplyr::select(dat_cluster_radar,-"Cluster"))
+var_types <- var_types$table_body
+var_types <- data.frame(distinct(var_types[, c("variable", "var_type")]))
+
+#Output table
+radar_df <- as.data.frame(matrix(nrow=length(unique(dat_cluster_radar$Cluster)), ncol=nrow(var_types)))
+colnames(radar_df) <- var_types$variable
+
+#Get stats for dichotomous variables
+for (var_name in var_types[which(var_types$var_type=="dichotomous"),"variable"]) {
+  for (cluster_id in unique(dat_cluster_radar$Cluster)){
+    dat_cluster_radar_var <- as.data.frame(dat_cluster_radar[which(dat_cluster_radar$Cluster==cluster_id), var_name])
+    mean_avg <- mean(dat_cluster_radar_var[,1], na.rm = T)
+    radar_df[cluster_id, var_name] <- mean_avg
+  }
+}
+
+#Get stats for continuous variables
+continuous_vars <- dplyr::select(dat_cluster_radar, c(var_types[which(var_types$var_type=="continuous"),"variable"], "Cluster"))
+
+continuous_vars_norm <- as.data.frame(matrix(nrow=nrow(continuous_vars), ncol=ncol(continuous_vars)))
+colnames(continuous_vars_norm) <- colnames(continuous_vars)
+continuous_vars_norm$Cluster <- continuous_vars$Cluster
+rownames(continuous_vars_norm) <- rownames(dat_cluster_radar)
+
+for (j in 1:(ncol(continuous_vars)-1)){
+  x <- continuous_vars[,j]
+  normalized <- (x-min(x, na.rm = T))/(max(x, na.rm = T)-min(x, na.rm = T))
+  continuous_vars_norm[,j] <- normalized
+}
+
+
+for (var_name in var_types[which(var_types$var_type=="continuous"),"variable"]) {
+  for (cluster_id in unique(dat_cluster_radar$Cluster)){
+    dat_cluster_radar_var <- as.data.frame(continuous_vars_norm[which(continuous_vars_norm$Cluster==cluster_id), var_name])
+    median_avg <- median(dat_cluster_radar_var[,1], na.rm = T)
+    sd <- sd(dat_cluster_radar_var[,1], na.rm = T)
+    radar_df[cluster_id, var_name] <- median_avg
+  }
+}
+
+radar_df_t <- as.data.frame(t(radar_df))
+colnames(radar_df_t)<-paste("Cluster", seq(1,4), sep="_")
+radar_df_t$variable <- rownames(radar_df_t)
+
+coord_radar <- function (theta = "x", start = 0, direction = 1) {
+  theta <- match.arg(theta, c("x", "y"))
+  r <- if (theta == "x") "y" else "x"
+  ggproto("CordRadar", CoordPolar, theta = theta, r = r, start = start, 
+          direction = sign(direction),
+          clip="off",
+          is_linear = function(coord) TRUE)
+}
+
+radar_long <- reshape2::melt(radar_df_t)
+colnames(radar_long) <- c("Variable", "Cluster", "Value")
+
+gg_color_hue <- function(n) {
+  hues = seq(15, 375, length = n + 1)
+  hcl(h = hues, l = 65, c = 100)[1:n]
+}
+
+rainbow4 <- gg_color_hue(4)
+ybreaks <- seq(0,1,.25)
+
+plot_list <- list()
+
+count<-1
+
+for (cluster_id in unique(radar_long$Cluster)){
+  radar_long_tmp <- radar_long[which(radar_long$Cluster==cluster_id),]
+  radar_long_tmp <- radar_long_tmp[order(radar_long_tmp$Variable),]
+  radar_long_tmp[nrow(radar_long_tmp)+1,] <- radar_long_tmp[1,]
+  
+  p <- ggplot(data=radar_long_tmp, aes(x=Variable, y=Value)) +
+    geom_polygon(aes(group=Cluster, color="Cluster"), color=rainbow4[count], fill = rainbow4[count], alpha=0.5, size = 1, show.legend = FALSE) +
+    geom_line(aes(group=Cluster), color=rainbow4[count], size=.75) +
+    ylim(-0.25, 1) +
+    geom_point(size=1.5, color=rainbow4[count]) +
+    coord_radar(start=0) +
+    theme_minimal() +
+    ylab("") +
+    xlab("") +
+    geom_text(data = data.frame(x = 0, y = ybreaks, label = ybreaks),
+              aes(x = x, y = y, label = label),
+              size =4) +
+    ggtitle(str_replace(cluster_id, "_"," ")) +
+    theme(legend.position = "none",
+          axis.ticks = element_blank(),
+          axis.text.y = element_blank(),
+          panel.grid.major.x = element_line(colour="white"),
+          plot.title = element_text(hjust = 0.5, face="bold", size=24),
+          axis.text.x = element_text(size=10)
+    )
+    
+  plot_list[[count]]<-p
+  
+  count <- count + 1
+}
+
+library(gridExtra)
+plot_list <- lapply(plot_list, ggplotGrob)
+x <- arrangeGrob(grobs=plot_list, nrow=2, ncol=2)
+grid.arrange(x)
+```
+<p align="center">
+<img src="DiscoverAD_tutorial_files/figure-gfm/figure_3A.jpg">
+</p>
+
+
 ## References
 Balasubramanyam A, Garza G, Rodriguez L, Hampe CS, Gaur L, Lernmark A,
 Maldonado MR: Accuracy and predictive value of classification schemes
