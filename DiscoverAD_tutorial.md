@@ -195,8 +195,8 @@ first exclude typical type 1 and type 2 patients, and then include known
 AD phenotypes.
 
 <p align="center">
-<img src="DiscoverAD_tutorial_files/figure-gfm/0002.jpg" width="1000">
-<img src="DiscoverAD_tutorial_files/figure-gfm/0003.jpg" width="600">
+<img src="DiscoverAD_tutorial_files/figure-gfm/figure_1B.jpg" width="1000">
+<img src="DiscoverAD_tutorial_files/figure-gfm/figure_1C.jpg" width="600">
 </p>
 
 ### Exclusion Filter
