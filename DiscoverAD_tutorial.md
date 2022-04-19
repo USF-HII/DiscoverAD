@@ -43,6 +43,7 @@ library(Amelia)
 library(cluster)
 library(Rtsne)
 library(ggrepel)
+library(factoextra)
 ```
 
 ## Input Data
@@ -341,12 +342,10 @@ title("Boruta Feature Selection")
 ``` r
 #Decide on tentative variables
 boruta_selection<-TentativeRoughFix(boruta_selection)
-```
 
-    ## Warning in TentativeRoughFix(boruta_selection): There are no Tentative
-    ## attributes! Returning original object.
+## Warning in TentativeRoughFix(boruta_selection): There are no Tentative
+## attributes! Returning original object.
 
-``` r
 boruta_variables<-unlist(lapply(getSelectedAttributes(boruta_selection), str_remove_all, "`"))
 
 #Filter dat_cluster to only boruta selected variables
@@ -432,7 +431,7 @@ silwidth<-function(daisy.mat, plot_name){
 best_k<-silwidth(gower.daisy.mat,'Atypical_sil_width')
 ```
 <p align="center">
-<img src="DiscoverAD_tutorial_files/figure-gfm/clustering_2-1.png">
+<img src="DiscoverAD_tutorial_files/figure-gfm/sil_width_plot.jpeg">
 </p>
 
 ``` r
@@ -448,12 +447,20 @@ Next, we take the gower dissimilarity matrix and the number of clusters
 #Run PAM clustering using gower matrix and silhouette-derived best k number of clusters
 Atypical_pam_fit <- pam(gower.daisy.mat, diss = TRUE, k = best_k)
 
-#Plot silhouette widths
-plot(Atypical_pam_fit, main=NULL)
+#Plot silhouette widths of individual clusters (Supplemental Figure 1B)
+s<-fviz_silhouette(Atypical_pam_fit, label=TRUE) + 
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_fill_grey() +
+  scale_color_grey() +
+  xlab("Patient #") +
+  geom_hline(yintercept=Atypical_pam_fit$silinfo["avg.width"]$avg.width, linetype="dashed") +
+  theme(title = element_text(family = 'Arial'))
+
+plot(s)
 ```
 
 <p align="center">
-<img src="DiscoverAD_tutorial_files/figure-gfm/clustering_3-1.png">
+<img src="DiscoverAD_tutorial_files/figure-gfm/supplemental_figure_1B.jpeg">
 </p>
 
 We can visualize the clusters using t-distributed stochastic neighbor
@@ -470,14 +477,21 @@ tsne_data <- tsne_obj$Y %>%
          name = dat_cluster$BDVISIT,
          pid = names(Atypical_pam_fit$clustering))
 
-print(ggplot(aes(x = X, y = Y), data = tsne_data) +
-        geom_point(aes(color=cluster), size=2) +
-        theme(text = element_text(size=18)) +
-        labs(color="Cluster"))
+tsne<-ggplot(aes(x = X, y = Y), data = tsne_data) + 
+  geom_point(aes(shape=cluster), size=4) +
+  scale_shape_manual(values=c(15,2,19,5)) +
+  labs(fill="Cluster") +
+  xlab("Tsne Dimension 1") +
+  ylab("Tsne Dimension 2") +
+  ggtitle("AD PAM Clusters") +
+  theme(plot.title = element_text(hjust = 0.6)) + 
+  theme(title = element_text(family = 'Arial')) +
+  geom_text_repel(aes(label=pid), point.padding = .25)
+plot(tsne)
 ```
 
 <p align="center">
-<img src="DiscoverAD_tutorial_files/figure-gfm/visualization-1.png">
+<img src="DiscoverAD_tutorial_files/figure-gfm/supplemental_figure_1C.jpg">
 </p>
 
 To differentiate the clusters, we can look at the summary statistics for
@@ -491,105 +505,76 @@ Atypical_pam_results <- dat_cluster %>%
 
 print(Atypical_pam_results$the_summary)
 ```
+[[1]]
+    insulin      GAD65Ab.index         WAIST            HIP              BMI1            MFBG          HOMA_IR        HOMA_beta       AGE_AT_VISIT     KETOACID  
+ Min.   : 6.80   Min.   :0.02966   Min.   : 82.3   Min.   : 90.70   Min.   :22.10   Min.   : 95.0   Min.   :2.277   Min.   : 17.95   Min.   :21.0   Min.   :0.0  
+ 1st Qu.: 9.10   1st Qu.:0.03957   1st Qu.: 92.6   1st Qu.: 93.75   1st Qu.:25.52   1st Qu.:103.2   1st Qu.:2.611   1st Qu.: 39.09   1st Qu.:52.0   1st Qu.:0.0  
+ Median :10.20   Median :0.06312   Median :104.0   Median :104.00   Median :30.50   Median :113.5   Median :2.804   Median : 69.96   Median :61.5   Median :0.0  
+ Mean   :11.30   Mean   :0.07737   Mean   :104.5   Mean   :106.92   Mean   :30.61   Mean   :134.3   Mean   :3.590   Mean   : 65.50   Mean   :58.0   Mean   :0.2  
+ 3rd Qu.:11.93   3rd Qu.:0.07974   3rd Qu.:111.0   3rd Qu.:111.28   3rd Qu.:31.95   3rd Qu.:152.8   3rd Qu.:4.775   3rd Qu.: 95.20   3rd Qu.:66.5   3rd Qu.:0.0  
+ Max.   :21.90   Max.   :0.19063   Max.   :132.0   Max.   :135.00   Max.   :43.30   Max.   :248.0   Max.   :6.409   Max.   :100.00   Max.   :83.0   Max.   :1.0  
+                                                                                                                                                                 
+ c.peptide.ng.ml consensus_age       Ab_pos       Cluster       cluster 
+ Min.   :2.080   Min.   :15.00   Min.   :0.0   Min.   :1.0   Min.   :1  
+ 1st Qu.:2.580   1st Qu.:41.00   1st Qu.:0.0   1st Qu.:1.0   1st Qu.:1  
+ Median :2.880   Median :47.00   Median :1.0   Median :1.5   Median :1  
+ Mean   :3.052   Mean   :46.67   Mean   :0.6   Mean   :2.0   Mean   :1  
+ 3rd Qu.:3.460   3rd Qu.:55.00   3rd Qu.:1.0   3rd Qu.:3.0   3rd Qu.:1  
+ Max.   :4.240   Max.   :63.00   Max.   :1.0   Max.   :4.0   Max.   :1  
+                 NA's   :1                                              
 
-    ## [[1]]
-    ##     insulin      GAD65Ab.index         WAIST             HIP
-    ##  Min.   : 6.60   Min.   :0.05016   Min.   : 89.80   Min.   : 92.00
-    ##  1st Qu.:10.15   1st Qu.:0.05928   1st Qu.: 97.78   1st Qu.: 99.25
-    ##  Median :10.75   Median :0.06488   Median :105.50   Median :105.55
-    ##  Mean   :12.78   Mean   :0.08652   Mean   :107.09   Mean   :108.92
-    ##  3rd Qu.:14.88   3rd Qu.:0.08202   3rd Qu.:111.55   3rd Qu.:111.47
-    ##  Max.   :21.90   Max.   :0.19063   Max.   :132.00   Max.   :135.00
-    ##
-    ##       BMI1          HOMA_IR       AGE_AT_VISIT      KETOACID
-    ##  Min.   :23.00   Min.   :2.017   Min.   :21.00   Min.   :0.0
-    ##  1st Qu.:29.30   1st Qu.:2.567   1st Qu.:57.00   1st Qu.:0.0
-    ##  Median :29.50   Median :2.839   Median :61.50   Median :0.0
-    ##  Mean   :31.18   Mean   :3.867   Mean   :57.20   Mean   :0.2
-    ##  3rd Qu.:31.85   3rd Qu.:5.407   3rd Qu.:64.25   3rd Qu.:0.0
-    ##  Max.   :43.30   Max.   :7.871   Max.   :69.00   Max.   :1.0
-    ##                  NA's   :1
-    ##  c.peptide.ng.ml         age            Ab_pos     cluster
-    ##  Min.   :    2.00   Min.   : 2.68   Min.   :1   Min.   :1
-    ##  1st Qu.:    2.73   1st Qu.:30.50   1st Qu.:1   1st Qu.:1
-    ##  Median :    3.44   Median :41.50   Median :1   Median :1
-    ##  Mean   : 2078.82   Mean   :37.47   Mean   :1   Mean   :1
-    ##  3rd Qu.:    4.05   3rd Qu.:46.50   3rd Qu.:1   3rd Qu.:1
-    ##  Max.   :20759.00   Max.   :63.00   Max.   :1   Max.   :1
-    ##
-    ##
-    ## [[2]]
-    ##     insulin      GAD65Ab.index         WAIST            HIP
-    ##  Min.   :12.00   Min.   :0.03652   Min.   :115.1   Min.   :118.1
-    ##  1st Qu.:18.60   1st Qu.:0.03684   1st Qu.:126.5   1st Qu.:126.5
-    ##  Median :25.20   Median :0.03715   Median :138.0   Median :135.0
-    ##  Mean   :37.53   Mean   :0.03748   Mean   :133.3   Mean   :130.2
-    ##  3rd Qu.:50.30   3rd Qu.:0.03796   3rd Qu.:142.3   3rd Qu.:136.2
-    ##  Max.   :75.40   Max.   :0.03876   Max.   :146.7   Max.   :137.4
-    ##       BMI1          HOMA_IR       AGE_AT_VISIT      KETOACID c.peptide.ng.ml
-    ##  Min.   :33.20   Min.   :10.10   Min.   :23.00   Min.   :0   Min.   :2.200
-    ##  1st Qu.:39.75   1st Qu.:10.95   1st Qu.:25.50   1st Qu.:0   1st Qu.:2.400
-    ##  Median :46.30   Median :11.79   Median :28.00   Median :0   Median :2.600
-    ##  Mean   :42.23   Mean   :13.50   Mean   :27.67   Mean   :0   Mean   :3.307
-    ##  3rd Qu.:46.75   3rd Qu.:15.20   3rd Qu.:30.00   3rd Qu.:0   3rd Qu.:3.860
-    ##  Max.   :47.20   Max.   :18.62   Max.   :32.00   Max.   :0   Max.   :5.120
-    ##       age            Ab_pos     cluster
-    ##  Min.   :11.00   Min.   :0   Min.   :2
-    ##  1st Qu.:14.50   1st Qu.:0   1st Qu.:2
-    ##  Median :18.00   Median :0   Median :2
-    ##  Mean   :16.33   Mean   :0   Mean   :2
-    ##  3rd Qu.:19.00   3rd Qu.:0   3rd Qu.:2
-    ##  Max.   :20.00   Max.   :0   Max.   :2
-    ##
-    ## [[3]]
-    ##     insulin      GAD65Ab.index         WAIST             HIP
-    ##  Min.   :1.800   Min.   :0.01691   Min.   : 78.00   Min.   : 87.00
-    ##  1st Qu.:3.100   1st Qu.:0.03031   1st Qu.: 81.65   1st Qu.: 89.80
-    ##  Median :5.000   Median :0.03801   Median : 89.00   Median : 91.00
-    ##  Mean   :5.236   Mean   :0.03612   Mean   : 88.43   Mean   : 93.62
-    ##  3rd Qu.:7.250   3rd Qu.:0.04302   3rd Qu.: 93.00   3rd Qu.: 96.75
-    ##  Max.   :9.100   Max.   :0.04930   Max.   :104.00   Max.   :108.00
-    ##
-    ##       BMI1          HOMA_IR        AGE_AT_VISIT      KETOACID c.peptide.ng.ml
-    ##  Min.   :17.00   Min.   :0.6820   Min.   :46.00   Min.   :0   Min.   :0.560
-    ##  1st Qu.:22.25   1st Qu.:0.8277   1st Qu.:50.00   1st Qu.:0   1st Qu.:1.440
-    ##  Median :24.50   Median :0.9944   Median :63.00   Median :0   Median :2.240
-    ##  Mean   :23.80   Mean   :1.8215   Mean   :62.27   Mean   :0   Mean   :2.009
-    ##  3rd Qu.:26.35   3rd Qu.:2.5097   3rd Qu.:65.50   3rd Qu.:0   3rd Qu.:2.400
-    ##  Max.   :28.60   Max.   :5.5166   Max.   :91.00   Max.   :0   Max.   :3.760
-    ##                                                               NA's   :2
-    ##       age            Ab_pos     cluster
-    ##  Min.   :18.00   Min.   :0   Min.   :3
-    ##  1st Qu.:35.25   1st Qu.:0   1st Qu.:3
-    ##  Median :44.00   Median :0   Median :3
-    ##  Mean   :48.10   Mean   :0   Mean   :3
-    ##  3rd Qu.:59.00   3rd Qu.:0   3rd Qu.:3
-    ##  Max.   :91.00   Max.   :0   Max.   :3
-    ##  NA's   :1
-    ##
-    ## [[4]]
-    ##     insulin       GAD65Ab.index         WAIST            HIP
-    ##  Min.   : 9.100   Min.   :0.02652   Min.   : 99.0   Min.   :107.0
-    ##  1st Qu.: 9.475   1st Qu.:0.03550   1st Qu.:102.8   1st Qu.:109.0
-    ##  Median :13.400   Median :0.04137   Median :104.0   Median :109.8
-    ##  Mean   :13.925   Mean   :0.03945   Mean   :103.4   Mean   :111.2
-    ##  3rd Qu.:17.850   3rd Qu.:0.04532   3rd Qu.:104.6   3rd Qu.:112.0
-    ##  Max.   :19.800   Max.   :0.04855   Max.   :106.5   Max.   :118.0
-    ##       BMI1          HOMA_IR       AGE_AT_VISIT     KETOACID c.peptide.ng.ml
-    ##  Min.   :28.90   Min.   :2.468   Min.   :42.0   Min.   :1   Min.   :0.48
-    ##  1st Qu.:29.12   1st Qu.:2.486   1st Qu.:48.0   1st Qu.:1   1st Qu.:0.99
-    ##  Median :30.50   Median :3.182   Median :52.5   Median :1   Median :1.44
-    ##  Mean   :31.07   Mean   :3.501   Mean   :52.5   Mean   :1   Mean   :1.48
-    ##  3rd Qu.:32.45   3rd Qu.:4.197   3rd Qu.:57.0   3rd Qu.:1   3rd Qu.:1.93
-    ##  Max.   :34.40   Max.   :5.171   Max.   :63.0   Max.   :1   Max.   :2.56
-    ##       age            Ab_pos     cluster
-    ##  Min.   :35.00   Min.   :0   Min.   :4
-    ##  1st Qu.:38.00   1st Qu.:0   1st Qu.:4
-    ##  Median :42.50   Median :0   Median :4
-    ##  Mean   :43.25   Mean   :0   Mean   :4
-    ##  3rd Qu.:47.75   3rd Qu.:0   3rd Qu.:4
-    ##  Max.   :53.00   Max.   :0   Max.   :4
+[[2]]
+    insulin       GAD65Ab.index         WAIST             HIP             BMI1            MFBG          HOMA_IR          HOMA_beta       AGE_AT_VISIT      KETOACID
+ Min.   : 1.800   Min.   :0.02377   Min.   : 89.00   Min.   : 94.0   Min.   :24.70   Min.   : 95.0   Min.   : 0.7199   Min.   : 4.031   Min.   :32.00   Min.   :0  
+ 1st Qu.: 2.775   1st Qu.:0.03189   1st Qu.: 90.50   1st Qu.: 97.0   1st Qu.:26.65   1st Qu.:144.5   1st Qu.: 0.9258   1st Qu.:10.680   1st Qu.:44.00   1st Qu.:0  
+ Median : 7.550   Median :0.03668   Median : 97.50   Median :102.0   Median :28.30   Median :193.5   Median : 4.4328   Median :24.419   Median :54.00   Median :0  
+ Mean   : 9.225   Mean   :0.04310   Mean   : 99.78   Mean   :104.0   Mean   :28.62   Mean   :221.0   Mean   : 5.3444   Mean   :31.892   Mean   :51.25   Mean   :0  
+ 3rd Qu.:14.000   3rd Qu.:0.04789   3rd Qu.:106.78   3rd Qu.:109.1   3rd Qu.:30.27   3rd Qu.:270.0   3rd Qu.: 8.8513   3rd Qu.:45.631   3rd Qu.:61.25   3rd Qu.:0  
+ Max.   :20.000   Max.   :0.07527   Max.   :115.10   Max.   :118.1   Max.   :33.20   Max.   :402.0   Max.   :11.7920   Max.   :74.697   Max.   :65.00   Max.   :0  
+ c.peptide.ng.ml consensus_age       Ab_pos        Cluster        cluster 
+ Min.   :0.56    Min.   :18.00   Min.   :0.00   Min.   :1.00   Min.   :2  
+ 1st Qu.:1.79    1st Qu.:30.00   1st Qu.:0.00   1st Qu.:1.75   1st Qu.:2  
+ Median :2.24    Median :34.50   Median :0.00   Median :2.50   Median :2  
+ Mean   :2.28    Mean   :36.75   Mean   :0.25   Mean   :2.25   Mean   :2  
+ 3rd Qu.:2.73    3rd Qu.:41.25   3rd Qu.:0.25   3rd Qu.:3.00   3rd Qu.:2  
+ Max.   :4.08    Max.   :60.00   Max.   :1.00   Max.   :3.00   Max.   :2  
 
+[[3]]
+    insulin       GAD65Ab.index         WAIST            HIP              BMI1            MFBG          HOMA_IR         HOMA_beta        AGE_AT_VISIT     KETOACID  
+ Min.   : 1.900   Min.   :0.01691   Min.   : 78.0   Min.   : 87.00   Min.   :17.00   Min.   : 90.0   Min.   : 0.682   Min.   :  5.556   Min.   :23.0   Min.   :0.0  
+ 1st Qu.: 4.875   1st Qu.:0.03668   1st Qu.: 92.6   1st Qu.: 92.03   1st Qu.:23.35   1st Qu.:102.2   1st Qu.: 1.211   1st Qu.: 31.786   1st Qu.:43.5   1st Qu.:0.0  
+ Median : 9.450   Median :0.03933   Median : 97.5   Median :103.00   Median :27.85   Median :126.0   Median : 2.606   Median : 45.580   Median :56.0   Median :0.0  
+ Mean   :17.380   Mean   :0.03875   Mean   :103.6   Mean   :107.08   Mean   :29.70   Mean   :135.4   Mean   : 4.751   Mean   : 56.716   Mean   :53.3   Mean   :0.4  
+ 3rd Qu.:19.150   3rd Qu.:0.04706   3rd Qu.:105.9   3rd Qu.:116.00   3rd Qu.:33.10   3rd Qu.:164.8   3rd Qu.: 4.847   3rd Qu.: 97.826   3rd Qu.:63.0   3rd Qu.:1.0  
+ Max.   :75.400   Max.   :0.05075   Max.   :146.7   Max.   :137.40   Max.   :47.20   Max.   :198.0   Max.   :18.615   Max.   :100.000   Max.   :91.0   Max.   :1.0  
+                                                                                                                                                                    
+ c.peptide.ng.ml consensus_age       Ab_pos       Cluster        cluster 
+ Min.   :0.480   Min.   :11.00   Min.   :0.0   Min.   :1.00   Min.   :3  
+ 1st Qu.:1.160   1st Qu.:22.25   1st Qu.:0.0   1st Qu.:2.25   1st Qu.:3  
+ Median :1.720   Median :37.00   Median :0.0   Median :3.00   Median :3  
+ Mean   :1.924   Mean   :37.60   Mean   :0.1   Mean   :2.90   Mean   :3  
+ 3rd Qu.:2.240   3rd Qu.:44.25   3rd Qu.:0.0   3rd Qu.:3.75   3rd Qu.:3  
+ Max.   :5.120   Max.   :91.00   Max.   :1.0   Max.   :4.00   Max.   :3  
+ NA's   :1                                                               
+
+[[4]]
+    insulin     GAD65Ab.index         WAIST             HIP              BMI1            MFBG          HOMA_IR         HOMA_beta       AGE_AT_VISIT    KETOACID
+ Min.   : 5.0   Min.   :0.04153   Min.   : 78.00   Min.   : 87.00   Min.   :22.40   Min.   :64.00   Min.   :0.7822   Min.   : 78.31   Min.   :52    Min.   :0  
+ 1st Qu.: 6.2   1st Qu.:0.04736   1st Qu.: 90.00   1st Qu.: 93.38   1st Qu.:25.02   1st Qu.:72.25   1st Qu.:1.2775   1st Qu.: 94.58   1st Qu.:55    1st Qu.:0  
+ Median : 7.0   Median :0.04973   Median : 95.35   Median :100.25   Median :27.60   Median :81.50   Median :1.7727   Median :100.00   Median :58    Median :0  
+ Mean   : 7.5   Mean   :0.04979   Mean   : 94.42   Mean   : 99.50   Mean   :26.75   Mean   :81.25   Mean   :1.5239   Mean   : 94.58   Mean   :58    Mean   :0  
+ 3rd Qu.: 8.3   3rd Qu.:0.05216   3rd Qu.: 99.78   3rd Qu.:106.38   3rd Qu.:29.32   3rd Qu.:90.50   3rd Qu.:1.8947   3rd Qu.:100.00   3rd Qu.:61    3rd Qu.:0  
+ Max.   :11.0   Max.   :0.05816   Max.   :109.00   Max.   :110.50   Max.   :29.40   Max.   :98.00   Max.   :2.0167   Max.   :100.00   Max.   :64    Max.   :0  
+                                                                                                    NA's   :1                                                  
+ c.peptide.ng.ml consensus_age       Ab_pos       Cluster       cluster 
+ Min.   :2.360   Min.   :34.00   Min.   :0.0   Min.   :1.0   Min.   :4  
+ 1st Qu.:2.520   1st Qu.:40.00   1st Qu.:0.0   1st Qu.:1.0   1st Qu.:4  
+ Median :2.680   Median :43.50   Median :0.5   Median :1.0   Median :4  
+ Mean   :2.933   Mean   :44.25   Mean   :0.5   Mean   :1.5   Mean   :4  
+ 3rd Qu.:3.220   3rd Qu.:47.75   3rd Qu.:1.0   3rd Qu.:1.5   3rd Qu.:4  
+ Max.   :3.760   Max.   :56.00   Max.   :1.0   Max.   :3.0   Max.   :4  
+ ```
+ 
 ## References
 Balasubramanyam A, Garza G, Rodriguez L, Hampe CS, Gaur L, Lernmark A,
 Maldonado MR: Accuracy and predictive value of classification schemes
