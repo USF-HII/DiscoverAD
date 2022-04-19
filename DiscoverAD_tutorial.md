@@ -46,6 +46,8 @@ library(Rtsne)
 library(ggrepel)
 library(factoextra)
 library(reshape2)
+library(gridExtra)
+
 ```
 
 ## Input Data
@@ -701,7 +703,6 @@ for (cluster_id in unique(radar_long$Cluster)){
   count <- count + 1
 }
 
-library(gridExtra)
 plot_list <- lapply(plot_list, ggplotGrob)
 x <- arrangeGrob(grobs=plot_list, nrow=2, ncol=2)
 grid.arrange(x)
